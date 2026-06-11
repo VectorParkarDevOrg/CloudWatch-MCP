@@ -378,6 +378,16 @@ TOOLS: list[dict] = [
     },
 ]
 
+# Inject optional region override into every tool schema
+for _tool in TOOLS:
+    _tool["inputSchema"]["properties"]["region"] = {
+        "type": "string",
+        "description": (
+            "AWS region override, e.g. ap-south-2, eu-west-1. "
+            "Defaults to the server's AWS_DEFAULT_REGION env var."
+        ),
+    }
+
 # ── Credential helpers ───────────────────────────────────────────────────────
 
 _BEARER_TOKEN = os.getenv("BEARER_TOKEN", "")
@@ -398,10 +408,13 @@ def _parse_creds(request: Request) -> dict:
     return {}
 
 
-def _client(service: str, creds: dict):
-    kwargs: dict[str, Any] = {
-        "region_name": creds.get("region") or os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    }
+def _client(service: str, creds: dict, region_override: str | None = None):
+    region = (
+        region_override
+        or creds.get("region")
+        or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    )
+    kwargs: dict[str, Any] = {"region_name": region}
     ak = creds.get("ak") or os.getenv("AWS_ACCESS_KEY_ID")
     sk = creds.get("sk") or os.getenv("AWS_SECRET_ACCESS_KEY")
     if ak and sk:
@@ -413,7 +426,7 @@ def _client(service: str, creds: dict):
 # ── Tool implementations ─────────────────────────────────────────────────────
 
 async def _get_active_alarms(args: dict, creds: dict) -> str:
-    cw = _client("cloudwatch", creds)
+    cw = _client("cloudwatch", creds, args.get("region"))
     state = args.get("state", "ALARM")
     kwargs: dict[str, Any] = {"StateValue": state}
     if args.get("alarm_name_prefix"):
@@ -442,7 +455,7 @@ async def _get_active_alarms(args: dict, creds: dict) -> str:
 
 
 async def _get_alarm_history(args: dict, creds: dict) -> str:
-    cw = _client("cloudwatch", creds)
+    cw = _client("cloudwatch", creds, args.get("region"))
     hours = max(1, int(args.get("hours", 24)))
     end = datetime.now(timezone.utc)
     start = end - timedelta(hours=hours)
@@ -467,7 +480,7 @@ async def _get_alarm_history(args: dict, creds: dict) -> str:
 
 
 async def _get_metric_data(args: dict, creds: dict) -> str:
-    cw = _client("cloudwatch", creds)
+    cw = _client("cloudwatch", creds, args.get("region"))
     hours = max(1, int(args.get("hours", 1)))
     period = max(60, int(args.get("period", 300)))
     stat = args.get("stat", "Average")
@@ -503,7 +516,7 @@ async def _get_metric_data(args: dict, creds: dict) -> str:
 
 
 async def _list_metrics(args: dict, creds: dict) -> str:
-    cw = _client("cloudwatch", creds)
+    cw = _client("cloudwatch", creds, args.get("region"))
     limit = min(500, max(1, int(args.get("limit", 100))))
 
     kwargs: dict[str, Any] = {}
@@ -548,7 +561,7 @@ async def _list_metrics(args: dict, creds: dict) -> str:
 
 
 async def _describe_log_groups(args: dict, creds: dict) -> str:
-    logs = _client("logs", creds)
+    logs = _client("logs", creds, args.get("region"))
     kwargs: dict[str, Any] = {"limit": min(50, max(1, int(args.get("limit", 20))))}
     if args.get("prefix"):
         kwargs["logGroupNamePrefix"] = args["prefix"]
@@ -569,7 +582,7 @@ async def _describe_log_groups(args: dict, creds: dict) -> str:
 
 
 async def _execute_log_insights_query(args: dict, creds: dict) -> str:
-    logs = _client("logs", creds)
+    logs = _client("logs", creds, args.get("region"))
     hours = max(1, int(args.get("hours", 1)))
     end_ts = int(datetime.now(timezone.utc).timestamp())
     start_ts = end_ts - hours * 3600
@@ -589,7 +602,7 @@ async def _execute_log_insights_query(args: dict, creds: dict) -> str:
 
 
 async def _get_logs_insight_query_results(args: dict, creds: dict) -> str:
-    logs = _client("logs", creds)
+    logs = _client("logs", creds, args.get("region"))
     qid = args["query_id"]
     wait = args.get("wait", True)
 
@@ -622,7 +635,7 @@ async def _get_logs_insight_query_results(args: dict, creds: dict) -> str:
 
 
 async def _filter_log_events(args: dict, creds: dict) -> str:
-    logs = _client("logs", creds)
+    logs = _client("logs", creds, args.get("region"))
     minutes = max(1, int(args.get("minutes", 30)))
     limit = min(200, max(1, int(args.get("limit", 50))))
     end_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -664,7 +677,7 @@ async def _filter_log_events(args: dict, creds: dict) -> str:
 
 
 async def _describe_log_streams(args: dict, creds: dict) -> str:
-    logs = _client("logs", creds)
+    logs = _client("logs", creds, args.get("region"))
     kwargs: dict[str, Any] = {
         "logGroupName": args["log_group_name"],
         "orderBy": "LastEventTime",
@@ -693,7 +706,7 @@ async def _describe_log_streams(args: dict, creds: dict) -> str:
 
 
 async def _get_log_events(args: dict, creds: dict) -> str:
-    logs = _client("logs", creds)
+    logs = _client("logs", creds, args.get("region"))
     limit = min(200, max(1, int(args.get("limit", 50))))
     resp = logs.get_log_events(
         logGroupName=args["log_group_name"],
@@ -721,7 +734,7 @@ async def _get_log_events(args: dict, creds: dict) -> str:
 
 
 async def _list_dashboards(args: dict, creds: dict) -> str:
-    cw = _client("cloudwatch", creds)
+    cw = _client("cloudwatch", creds, args.get("region"))
     kwargs: dict[str, Any] = {}
     if args.get("prefix"):
         kwargs["DashboardNamePrefix"] = args["prefix"]
@@ -742,7 +755,7 @@ async def _list_dashboards(args: dict, creds: dict) -> str:
 
 
 async def _get_dashboard(args: dict, creds: dict) -> str:
-    cw = _client("cloudwatch", creds)
+    cw = _client("cloudwatch", creds, args.get("region"))
     resp = cw.get_dashboard(DashboardName=args["dashboard_name"])
     body = resp.get("DashboardBody", "{}")
 
