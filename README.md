@@ -13,10 +13,15 @@ Runs on your infrastructure server, talks directly to AWS CloudWatch APIs, and e
 | `get_active_alarms` | List currently firing CloudWatch alarms |
 | `get_alarm_history` | State change history for a specific alarm (for RCA) |
 | `get_metric_data` | Metric values over a time window (CPU, latency, errors, etc.) |
-| `list_metrics` | Discover available metrics for a namespace |
+| `list_metrics` | Discover all metrics across namespaces with pagination |
 | `describe_log_groups` | List available CloudWatch log groups |
+| `describe_log_streams` | List log streams within a log group |
+| `get_log_events` | Fetch raw log lines from a specific log stream |
+| `filter_log_events` | Search for a pattern across an entire log group (all streams) |
 | `execute_log_insights_query` | Run a Logs Insights query — returns a query_id |
 | `get_logs_insight_query_results` | Fetch results of a running Logs Insights query |
+| `list_dashboards` | List available CloudWatch dashboards |
+| `get_dashboard` | Get widgets and layout of a specific dashboard |
 
 ---
 

@@ -2,8 +2,7 @@
 CloudWatch MCP HTTP Server for VERA AI
 
 Speaks MCP Streamable HTTP / SSE (JSON-RPC over HTTP).
-AWS credentials are passed per-request in the Authorization Bearer token as JSON:
-  {"ak": "ACCESS_KEY_ID", "sk": "SECRET_ACCESS_KEY", "region": "us-east-1"}
+AWS credentials come from the server environment (IAM role or env vars).
 
 Tools:
   get_active_alarms              — currently firing CloudWatch alarms
@@ -11,8 +10,12 @@ Tools:
   get_metric_data                — retrieve metric values over a time window
   list_metrics                   — discover available metrics for a namespace
   describe_log_groups            — list available log groups
+  describe_log_streams           — list log streams within a log group
+  get_log_events                 — fetch raw log lines from a log stream
   execute_log_insights_query     — run a Logs Insights query (returns query_id)
   get_logs_insight_query_results — retrieve results of a running query
+  list_dashboards                — list available CloudWatch dashboards
+  get_dashboard                  — get widgets/body of a specific dashboard
 """
 from __future__ import annotations
 
@@ -134,19 +137,31 @@ TOOLS: list[dict] = [
     {
         "name": "list_metrics",
         "description": (
-            "List available CloudWatch metrics for a namespace. "
-            "Use to discover what metrics exist before calling get_metric_data."
+            "List available CloudWatch metrics. Leave namespace empty to discover "
+            "all namespaces. Filter by metric_name or dimensions to narrow results. "
+            "Returns up to 500 unique metric names with their dimensions."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "namespace": {
                     "type": "string",
-                    "description": "e.g. AWS/EC2. Leave empty to list all namespaces.",
+                    "description": "e.g. AWS/EC2, AWS/Lambda, AWS/RDS. Leave empty to list all.",
                 },
                 "metric_name": {
                     "type": "string",
-                    "description": "Optional metric name filter.",
+                    "description": "Optional metric name filter, e.g. CPUUtilization.",
+                },
+                "dimensions": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": 'Optional dimension filter, e.g. [{"Name":"InstanceId","Value":"i-0abc"}]',
+                    "default": [],
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Max unique metrics to return (up to 500). Default: 100.",
                 },
             },
             "additionalProperties": False,
@@ -204,6 +219,45 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "filter_log_events",
+        "description": (
+            "Search for log events matching a pattern across an entire log group "
+            "(all streams). Faster than Insights for simple keyword/pattern searches. "
+            "Use for 'find ERROR logs', 'find logs containing X in last N minutes'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "log_group_name": {
+                    "type": "string",
+                    "description": "Log group to search, e.g. /aws/lambda/my-function.",
+                },
+                "filter_pattern": {
+                    "type": "string",
+                    "description": 'CloudWatch filter pattern, e.g. "ERROR", "?Exception ?error", "[level=ERROR]".',
+                },
+                "minutes": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "How many minutes back to search. Default: 30.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 50,
+                    "description": "Maximum events to return. Default: 50.",
+                },
+                "log_stream_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional: limit search to specific streams.",
+                    "default": [],
+                },
+            },
+            "required": ["log_group_name", "filter_pattern"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "get_logs_insight_query_results",
         "description": (
             "Retrieve results of a CloudWatch Logs Insights query started with "
@@ -223,6 +277,102 @@ TOOLS: list[dict] = [
                 },
             },
             "required": ["query_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "describe_log_streams",
+        "description": (
+            "List log streams within a CloudWatch log group, ordered by last event time. "
+            "Use to find the specific stream to tail with get_log_events."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "log_group_name": {
+                    "type": "string",
+                    "description": "Exact log group name, e.g. /aws/lambda/my-function.",
+                },
+                "prefix": {
+                    "type": "string",
+                    "description": "Optional stream name prefix filter.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Maximum streams to return. Default: 10.",
+                },
+            },
+            "required": ["log_group_name"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_log_events",
+        "description": (
+            "Fetch raw log lines from a specific CloudWatch log stream. "
+            "Use for real-time tailing or fetching the latest lines from a Lambda, "
+            "ECS task, or EC2 application log."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "log_group_name": {
+                    "type": "string",
+                    "description": "Log group name, e.g. /aws/lambda/my-function.",
+                },
+                "log_stream_name": {
+                    "type": "string",
+                    "description": "Log stream name from describe_log_streams.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 50,
+                    "description": "Maximum log events to return. Default: 50.",
+                },
+                "start_from_head": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "If false (default), returns the most recent events.",
+                },
+            },
+            "required": ["log_group_name", "log_stream_name"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_dashboards",
+        "description": (
+            "List available CloudWatch dashboards. "
+            "Use to discover dashboard names before calling get_dashboard."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prefix": {
+                    "type": "string",
+                    "description": "Optional dashboard name prefix filter.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_dashboard",
+        "description": (
+            "Retrieve the widgets and layout of a specific CloudWatch dashboard. "
+            "Returns the dashboard body as JSON — useful for understanding which "
+            "metrics and alarms the team is actively monitoring."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dashboard_name": {
+                    "type": "string",
+                    "description": "Exact dashboard name from list_dashboards.",
+                },
+            },
+            "required": ["dashboard_name"],
             "additionalProperties": False,
         },
     },
@@ -354,27 +504,47 @@ async def _get_metric_data(args: dict, creds: dict) -> str:
 
 async def _list_metrics(args: dict, creds: dict) -> str:
     cw = _client("cloudwatch", creds)
+    limit = min(500, max(1, int(args.get("limit", 100))))
+
     kwargs: dict[str, Any] = {}
     if args.get("namespace"):
         kwargs["Namespace"] = args["namespace"]
     if args.get("metric_name"):
         kwargs["MetricName"] = args["metric_name"]
+    if args.get("dimensions"):
+        kwargs["Dimensions"] = args["dimensions"]
 
-    resp = cw.list_metrics(**kwargs)
-    metrics = resp.get("Metrics", [])
+    metrics: list[dict] = []
+    next_token = None
+    while len(metrics) < limit:
+        if next_token:
+            kwargs["NextToken"] = next_token
+        resp = cw.list_metrics(**kwargs)
+        metrics.extend(resp.get("Metrics", []))
+        next_token = resp.get("NextToken")
+        if not next_token or len(metrics) >= limit:
+            break
+
+    metrics = metrics[:limit]
     if not metrics:
         return "No metrics found."
 
-    seen: set[str] = set()
-    lines: list[str] = []
-    for m in metrics[:100]:
-        key = f"{m['Namespace']}/{m['MetricName']}"
-        if key not in seen:
-            seen.add(key)
-            dims = ", ".join(f"{d['Name']}={d['Value']}" for d in m.get("Dimensions", []))
-            lines.append(f"  {key}" + (f"  [{dims}]" if dims else ""))
+    # Group by namespace for readability
+    by_ns: dict[str, list[str]] = {}
+    for m in metrics:
+        ns = m["Namespace"]
+        mn = m["MetricName"]
+        dims = ", ".join(f"{d['Name']}={d['Value']}" for d in m.get("Dimensions", []))
+        entry = f"    {mn}" + (f"  [{dims}]" if dims else "")
+        by_ns.setdefault(ns, []).append(entry)
 
-    return f"Available metrics ({len(seen)} unique):\n\n" + "\n".join(lines)
+    lines = [f"Metrics found ({len(metrics)}):\n"]
+    for ns in sorted(by_ns):
+        lines.append(f"  {ns}:")
+        for e in sorted(set(by_ns[ns])):
+            lines.append(e)
+        lines.append("")
+    return "\n".join(lines)
 
 
 async def _describe_log_groups(args: dict, creds: dict) -> str:
@@ -451,6 +621,151 @@ async def _get_logs_insight_query_results(args: dict, creds: dict) -> str:
     return "\n".join(lines)
 
 
+async def _filter_log_events(args: dict, creds: dict) -> str:
+    logs = _client("logs", creds)
+    minutes = max(1, int(args.get("minutes", 30)))
+    limit = min(200, max(1, int(args.get("limit", 50))))
+    end_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+    start_ts = end_ts - minutes * 60 * 1000
+
+    kwargs: dict[str, Any] = {
+        "logGroupName": args["log_group_name"],
+        "filterPattern": args["filter_pattern"],
+        "startTime": start_ts,
+        "endTime": end_ts,
+        "limit": limit,
+    }
+    if args.get("log_stream_names"):
+        kwargs["logStreamNames"] = args["log_stream_names"]
+
+    resp = logs.filter_log_events(**kwargs)
+    events = resp.get("events", [])
+    if not events:
+        return (
+            f"No events matching '{args['filter_pattern']}' in "
+            f"'{args['log_group_name']}' (last {minutes} min)."
+        )
+
+    lines = [
+        f"{len(events)} event(s) matching '{args['filter_pattern']}' "
+        f"in {args['log_group_name']} (last {minutes} min):\n"
+    ]
+    for e in events:
+        ts = e.get("timestamp", 0)
+        ts_str = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stream = e.get("logStreamName", "")
+        message = e.get("message", "").rstrip("\n")
+        lines.append(f"  [{ts_str}] ({stream}) {message}")
+
+    if resp.get("searchedLogStreams"):
+        searched = len(resp["searchedLogStreams"])
+        lines.append(f"\nSearched {searched} log stream(s).")
+    return "\n".join(lines)
+
+
+async def _describe_log_streams(args: dict, creds: dict) -> str:
+    logs = _client("logs", creds)
+    kwargs: dict[str, Any] = {
+        "logGroupName": args["log_group_name"],
+        "orderBy": "LastEventTime",
+        "descending": True,
+        "limit": min(50, max(1, int(args.get("limit", 10)))),
+    }
+    if args.get("prefix"):
+        kwargs["logStreamNamePrefix"] = args["prefix"]
+
+    resp = logs.describe_log_streams(**kwargs)
+    streams = resp.get("logStreams", [])
+    if not streams:
+        return f"No log streams found in '{args['log_group_name']}'."
+
+    lines = [f"Log streams in {args['log_group_name']} ({len(streams)}):\n"]
+    for s in streams:
+        name = s["logStreamName"]
+        last = s.get("lastEventTimestamp")
+        last_str = (
+            datetime.fromtimestamp(last / 1000, tz=timezone.utc).isoformat()
+            if last else "no events"
+        )
+        lines.append(f"  {name}")
+        lines.append(f"    Last event: {last_str}")
+    return "\n".join(lines)
+
+
+async def _get_log_events(args: dict, creds: dict) -> str:
+    logs = _client("logs", creds)
+    limit = min(200, max(1, int(args.get("limit", 50))))
+    resp = logs.get_log_events(
+        logGroupName=args["log_group_name"],
+        logStreamName=args["log_stream_name"],
+        limit=limit,
+        startFromHead=args.get("start_from_head", False),
+    )
+    events = resp.get("events", [])
+    if not events:
+        return (
+            f"No log events in '{args['log_stream_name']}' "
+            f"(group: {args['log_group_name']})."
+        )
+
+    lines = [
+        f"Log events from {args['log_group_name']} / {args['log_stream_name']} "
+        f"({len(events)} events):\n"
+    ]
+    for e in events:
+        ts = e.get("timestamp", 0)
+        ts_str = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        message = e.get("message", "").rstrip("\n")
+        lines.append(f"  [{ts_str}] {message}")
+    return "\n".join(lines)
+
+
+async def _list_dashboards(args: dict, creds: dict) -> str:
+    cw = _client("cloudwatch", creds)
+    kwargs: dict[str, Any] = {}
+    if args.get("prefix"):
+        kwargs["DashboardNamePrefix"] = args["prefix"]
+
+    resp = cw.list_dashboards(**kwargs)
+    entries = resp.get("DashboardEntries", [])
+    if not entries:
+        return "No CloudWatch dashboards found."
+
+    lines = [f"CloudWatch dashboards ({len(entries)}):\n"]
+    for d in entries:
+        name = d.get("DashboardName", "")
+        size = d.get("Size", 0)
+        modified = d.get("LastModified")
+        modified_str = modified.isoformat() if hasattr(modified, "isoformat") else str(modified)
+        lines.append(f"  {name}  (size: {size} bytes, modified: {modified_str})")
+    return "\n".join(lines)
+
+
+async def _get_dashboard(args: dict, creds: dict) -> str:
+    cw = _client("cloudwatch", creds)
+    resp = cw.get_dashboard(DashboardName=args["dashboard_name"])
+    body = resp.get("DashboardBody", "{}")
+
+    try:
+        parsed = json.loads(body)
+        widgets = parsed.get("widgets", [])
+        lines = [f"Dashboard '{args['dashboard_name']}' — {len(widgets)} widget(s):\n"]
+        for i, w in enumerate(widgets, 1):
+            wtype = w.get("type", "unknown")
+            props = w.get("properties", {})
+            title = props.get("title", "(no title)")
+            lines.append(f"  [{i}] {wtype}: {title}")
+            if wtype == "metric" and props.get("metrics"):
+                for m in props["metrics"][:3]:
+                    lines.append(f"       metric: {m}")
+            elif wtype == "alarm" and props.get("alarms"):
+                for a in props["alarms"][:3]:
+                    lines.append(f"       alarm: {a}")
+        return "\n".join(lines)
+    except (json.JSONDecodeError, TypeError):
+        return f"Dashboard body (raw):\n{body[:2000]}"
+
+
 # ── Tool dispatch ────────────────────────────────────────────────────────────
 
 _HANDLERS = {
@@ -459,8 +774,13 @@ _HANDLERS = {
     "get_metric_data":                _get_metric_data,
     "list_metrics":                   _list_metrics,
     "describe_log_groups":            _describe_log_groups,
+    "describe_log_streams":           _describe_log_streams,
+    "get_log_events":                 _get_log_events,
+    "filter_log_events":              _filter_log_events,
     "execute_log_insights_query":     _execute_log_insights_query,
     "get_logs_insight_query_results": _get_logs_insight_query_results,
+    "list_dashboards":                _list_dashboards,
+    "get_dashboard":                  _get_dashboard,
 }
 
 
