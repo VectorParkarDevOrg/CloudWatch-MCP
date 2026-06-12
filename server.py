@@ -425,6 +425,78 @@ TOOLS: list[dict] = [
             "additionalProperties": False,
         },
     },
+    # ── CloudTrail ───────────────────────────────────────────────────────────
+    {
+        "name": "lookup_cloudtrail_events",
+        "description": (
+            "Search CloudTrail audit events — who did what and when. "
+            "Essential for RCA: find who stopped an EC2 instance, changed a security group, "
+            "deleted an S3 bucket, modified an IAM policy, or deployed a Lambda. "
+            "Filter by username, resource name, event name, or resource type."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "hours": {
+                    "type": "integer",
+                    "default": 24,
+                    "description": "How many hours back to search. Default: 24. Max: 2160 (90 days).",
+                },
+                "event_name": {
+                    "type": "string",
+                    "description": "Filter by specific API action, e.g. StopInstances, DeleteBucket, ModifyDBInstance.",
+                },
+                "username": {
+                    "type": "string",
+                    "description": "Filter by IAM username or role name that performed the action.",
+                },
+                "resource_name": {
+                    "type": "string",
+                    "description": "Filter by resource name/ID, e.g. i-0abc123, my-bucket, sg-0def456.",
+                },
+                "resource_type": {
+                    "type": "string",
+                    "description": "Filter by resource type, e.g. AWS::EC2::Instance, AWS::S3::Bucket, AWS::RDS::DBInstance.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 50,
+                    "description": "Maximum events to return. Default: 50.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "describe_trails",
+        "description": (
+            "List all CloudTrail trails configured in the account with their "
+            "S3 destination, multi-region status, and log file validation setting."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_trail_status",
+        "description": (
+            "Check if a specific CloudTrail trail is actively logging. "
+            "Returns latest delivery time, latest error, and whether logging is enabled."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "trail_name": {
+                    "type": "string",
+                    "description": "Trail name or ARN from describe_trails.",
+                },
+            },
+            "required": ["trail_name"],
+            "additionalProperties": False,
+        },
+    },
     # ── EC2 ──────────────────────────────────────────────────────────────────
     {
         "name": "list_ec2_instances",
@@ -1319,6 +1391,104 @@ async def _get_sqs_queue_stats(args: dict, creds: dict) -> str:
     return "\n".join(lines)
 
 
+async def _lookup_cloudtrail_events(args: dict, creds: dict) -> str:
+    ct = _client("cloudtrail", creds, args.get("region"))
+    hours = min(2160, max(1, int(args.get("hours", 24))))
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(hours=hours)
+    limit = min(200, max(1, int(args.get("limit", 50))))
+
+    lookup_attrs = []
+    if args.get("event_name"):
+        lookup_attrs.append({"AttributeKey": "EventName", "AttributeValue": args["event_name"]})
+    if args.get("username"):
+        lookup_attrs.append({"AttributeKey": "Username", "AttributeValue": args["username"]})
+    if args.get("resource_name"):
+        lookup_attrs.append({"AttributeKey": "ResourceName", "AttributeValue": args["resource_name"]})
+    if args.get("resource_type"):
+        lookup_attrs.append({"AttributeKey": "ResourceType", "AttributeValue": args["resource_type"]})
+
+    kwargs: dict[str, Any] = {
+        "StartTime": start,
+        "EndTime": end,
+        "MaxResults": limit,
+    }
+    if lookup_attrs:
+        # CloudTrail lookup supports only one attribute at a time
+        kwargs["LookupAttributes"] = [lookup_attrs[0]]
+
+    resp = ct.lookup_events(**kwargs)
+    events = resp.get("Events", [])
+
+    if not events:
+        return f"No CloudTrail events found for the last {hours}h with the given filters."
+
+    lines = [f"CloudTrail events — last {hours}h ({len(events)} results):\n"]
+    for e in events:
+        ts = e.get("EventTime")
+        ts_str = ts.strftime("%Y-%m-%dT%H:%M:%SZ") if hasattr(ts, "strftime") else str(ts)
+        name = e.get("EventName", "")
+        user = e.get("Username", "unknown")
+        source = e.get("EventSource", "")
+        resources = e.get("Resources", [])
+        res_str = ", ".join(
+            f"{r.get('ResourceType','').split('::')[-1]}:{r.get('ResourceName','')}"
+            for r in resources[:3]
+        )
+        lines.append(f"  [{ts_str}] {name} by {user} ({source})")
+        if res_str:
+            lines.append(f"    Resources: {res_str}")
+
+    if resp.get("NextToken"):
+        lines.append(f"\n  … more events available. Narrow the time range or add a filter.")
+    return "\n".join(lines)
+
+
+async def _describe_trails(args: dict, creds: dict) -> str:
+    ct = _client("cloudtrail", creds, args.get("region"))
+    resp = ct.describe_trails(includeShadowTrails=False)
+    trails = resp.get("trailList", [])
+    if not trails:
+        return "No CloudTrail trails found. CloudTrail may not be enabled in this region/account."
+
+    lines = [f"CloudTrail trails ({len(trails)}):\n"]
+    for t in trails:
+        name = t.get("Name", "")
+        bucket = t.get("S3BucketName", "")
+        multi = "multi-region" if t.get("IsMultiRegionTrail") else "single-region"
+        validation = "log-validation=ON" if t.get("LogFileValidationEnabled") else "log-validation=OFF"
+        home = t.get("HomeRegion", "")
+        lines.append(f"  {name}  [{multi}]  [{validation}]  home={home}")
+        lines.append(f"    S3: s3://{bucket}")
+    return "\n".join(lines)
+
+
+async def _get_trail_status(args: dict, creds: dict) -> str:
+    ct = _client("cloudtrail", creds, args.get("region"))
+    resp = ct.get_trail_status(Name=args["trail_name"])
+
+    logging_on = resp.get("IsLogging", False)
+    latest_delivery = resp.get("LatestDeliveryTime")
+    latest_delivery_str = (
+        latest_delivery.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if hasattr(latest_delivery, "strftime") else "never"
+    )
+    latest_error = resp.get("LatestDeliveryError", "")
+    latest_digest = resp.get("LatestDigestDeliveryTime")
+    latest_digest_str = (
+        latest_digest.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if hasattr(latest_digest, "strftime") else "never"
+    )
+
+    status = "✅ LOGGING" if logging_on else "❌ NOT LOGGING"
+    lines = [f"Trail '{args['trail_name']}': {status}\n"]
+    lines.append(f"  Latest log delivery:    {latest_delivery_str}")
+    lines.append(f"  Latest digest delivery: {latest_digest_str}")
+    if latest_error:
+        lines.append(f"  ⚠️  Latest error: {latest_error}")
+    return "\n".join(lines)
+
+
 # ── Tool dispatch ────────────────────────────────────────────────────────────
 
 _HANDLERS = {
@@ -1334,6 +1504,9 @@ _HANDLERS = {
     "get_logs_insight_query_results": _get_logs_insight_query_results,
     "list_dashboards":                _list_dashboards,
     "get_dashboard":                  _get_dashboard,
+    "lookup_cloudtrail_events":       _lookup_cloudtrail_events,
+    "describe_trails":                _describe_trails,
+    "get_trail_status":               _get_trail_status,
     "list_s3_buckets":                _list_s3_buckets,
     "get_s3_storage_metrics":         _get_s3_storage_metrics,
     "list_ec2_instances":             _list_ec2_instances,
