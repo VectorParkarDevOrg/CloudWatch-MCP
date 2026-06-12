@@ -671,6 +671,195 @@ TOOLS: list[dict] = [
             "additionalProperties": False,
         },
     },
+    # ── ELB / Load Balancers ─────────────────────────────────────────────────
+    {
+        "name": "list_load_balancers",
+        "description": "List ALB/NLB/CLB load balancers with DNS name, state, and type. Use to find load balancer ARNs before checking target health.",
+        "inputSchema": {"type": "object", "properties": {"name_filter": {"type": "string", "description": "Optional name substring filter."}}, "additionalProperties": False},
+    },
+    {
+        "name": "get_target_group_health",
+        "description": "Get health of all targets (instances/IPs) in an ELB target group. Shows healthy/unhealthy/draining counts and failure reasons. Critical for incident triage.",
+        "inputSchema": {"type": "object", "properties": {"load_balancer_arn": {"type": "string", "description": "Load balancer ARN from list_load_balancers. Leave empty to check all."}}, "additionalProperties": False},
+    },
+    # ── Auto Scaling ─────────────────────────────────────────────────────────
+    {
+        "name": "list_auto_scaling_groups",
+        "description": "List Auto Scaling Groups with min/max/desired capacity, current instances, and health status. Use to detect capacity mismatches during incidents.",
+        "inputSchema": {"type": "object", "properties": {"name_filter": {"type": "string", "description": "Optional ASG name substring filter."}}, "additionalProperties": False},
+    },
+    {
+        "name": "get_scaling_activities",
+        "description": "Get recent Auto Scaling events for an ASG — scale-in/out, instance launches/terminations, and reasons. Essential for RCA when instance count changed unexpectedly.",
+        "inputSchema": {"type": "object", "properties": {"asg_name": {"type": "string", "description": "Auto Scaling Group name."}, "hours": {"type": "integer", "default": 24, "description": "Hours back to search. Default: 24."}}, "required": ["asg_name"], "additionalProperties": False},
+    },
+    # ── VPC / Networking ─────────────────────────────────────────────────────
+    {
+        "name": "list_vpcs",
+        "description": "List VPCs with CIDR, name tag, and default status. Use to understand network topology.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "describe_security_group",
+        "description": "Get inbound and outbound rules for a specific security group. Use to debug network connectivity issues.",
+        "inputSchema": {"type": "object", "properties": {"sg_id": {"type": "string", "description": "Security group ID, e.g. sg-0abc123."}}, "required": ["sg_id"], "additionalProperties": False},
+    },
+    {
+        "name": "list_subnets",
+        "description": "List subnets with CIDR, AZ, available IPs, and VPC. Use to understand network layout and capacity.",
+        "inputSchema": {"type": "object", "properties": {"vpc_id": {"type": "string", "description": "Optional VPC ID to filter by."}}, "additionalProperties": False},
+    },
+    # ── ElastiCache ──────────────────────────────────────────────────────────
+    {
+        "name": "list_elasticache_clusters",
+        "description": "List ElastiCache clusters (Redis/Memcached) with engine, status, node type, and endpoint.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "get_elasticache_events",
+        "description": "Get recent ElastiCache events — failovers, node replacements, parameter changes. Use for cache-related RCA.",
+        "inputSchema": {"type": "object", "properties": {"hours": {"type": "integer", "default": 24, "description": "Hours back. Default: 24."}, "source_id": {"type": "string", "description": "Optional cluster/replication group ID filter."}}, "additionalProperties": False},
+    },
+    # ── DynamoDB ─────────────────────────────────────────────────────────────
+    {
+        "name": "list_dynamodb_tables",
+        "description": "List all DynamoDB tables with their status.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "describe_dynamodb_table",
+        "description": "Get DynamoDB table details — keys, GSIs, provisioned/on-demand capacity, item count, and size.",
+        "inputSchema": {"type": "object", "properties": {"table_name": {"type": "string", "description": "Table name."}}, "required": ["table_name"], "additionalProperties": False},
+    },
+    # ── CloudFormation ───────────────────────────────────────────────────────
+    {
+        "name": "list_cloudformation_stacks",
+        "description": "List CloudFormation stacks with status and last updated time. Use to see what was recently deployed.",
+        "inputSchema": {"type": "object", "properties": {"status_filter": {"type": "string", "description": "Optional status filter, e.g. CREATE_COMPLETE, UPDATE_ROLLBACK_COMPLETE, ROLLBACK_COMPLETE."}}, "additionalProperties": False},
+    },
+    {
+        "name": "get_stack_events",
+        "description": "Get recent CloudFormation deployment events for a stack. Shows what changed, which resources failed, and why. Critical for deployment RCA.",
+        "inputSchema": {"type": "object", "properties": {"stack_name": {"type": "string", "description": "Stack name or ARN."}, "limit": {"type": "integer", "default": 30, "description": "Max events. Default: 30."}}, "required": ["stack_name"], "additionalProperties": False},
+    },
+    # ── EKS ──────────────────────────────────────────────────────────────────
+    {
+        "name": "list_eks_clusters",
+        "description": "List EKS (Kubernetes) clusters in the account/region.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "describe_eks_cluster",
+        "description": "Get EKS cluster details — Kubernetes version, endpoint, status, VPC config, and logging configuration.",
+        "inputSchema": {"type": "object", "properties": {"cluster_name": {"type": "string", "description": "EKS cluster name."}}, "required": ["cluster_name"], "additionalProperties": False},
+    },
+    {
+        "name": "list_eks_nodegroups",
+        "description": "List node groups in an EKS cluster with instance type, scaling config, and health status.",
+        "inputSchema": {"type": "object", "properties": {"cluster_name": {"type": "string", "description": "EKS cluster name."}}, "required": ["cluster_name"], "additionalProperties": False},
+    },
+    # ── API Gateway ──────────────────────────────────────────────────────────
+    {
+        "name": "list_api_gateways",
+        "description": "List REST APIs and HTTP APIs in API Gateway with their endpoint type and creation date.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "get_api_stages",
+        "description": "Get deployment stages for an API Gateway REST API — stage name, throttling limits, caching, and last deployed time.",
+        "inputSchema": {"type": "object", "properties": {"api_id": {"type": "string", "description": "REST API ID from list_api_gateways."}}, "required": ["api_id"], "additionalProperties": False},
+    },
+    # ── SNS ──────────────────────────────────────────────────────────────────
+    {
+        "name": "list_sns_topics",
+        "description": "List SNS topics in the account/region.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "get_sns_topic_details",
+        "description": "Get SNS topic attributes including subscriptions count, delivery policy, and KMS key.",
+        "inputSchema": {"type": "object", "properties": {"topic_arn": {"type": "string", "description": "SNS topic ARN."}}, "required": ["topic_arn"], "additionalProperties": False},
+    },
+    # ── Route 53 ─────────────────────────────────────────────────────────────
+    {
+        "name": "list_hosted_zones",
+        "description": "List Route 53 hosted zones (DNS zones) with record count and type (public/private).",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "list_route53_health_checks",
+        "description": "List Route 53 health checks with their status, target endpoint, and failure threshold.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    # ── SSM ──────────────────────────────────────────────────────────────────
+    {
+        "name": "list_ssm_managed_instances",
+        "description": "List EC2 instances managed by SSM (Systems Manager) with ping status, OS, and last seen time. Use to check which instances are reachable via SSM.",
+        "inputSchema": {"type": "object", "properties": {"ping_status": {"type": "string", "enum": ["Online", "Inactive", "ConnectionLost", "all"], "default": "all", "description": "Filter by ping status."}}, "additionalProperties": False},
+    },
+    # ── CloudFront ───────────────────────────────────────────────────────────
+    {
+        "name": "list_cloudfront_distributions",
+        "description": "List CloudFront distributions with domain name, origin, status, and price class.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    # ── ECR ──────────────────────────────────────────────────────────────────
+    {
+        "name": "list_ecr_repositories",
+        "description": "List ECR (Elastic Container Registry) repositories with URI and image count.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "describe_ecr_images",
+        "description": "List images in an ECR repository with tags, digest, push date, and size. Use to see what container images are available and when they were pushed.",
+        "inputSchema": {"type": "object", "properties": {"repository_name": {"type": "string", "description": "ECR repository name."}, "limit": {"type": "integer", "default": 20, "description": "Max images. Default: 20."}}, "required": ["repository_name"], "additionalProperties": False},
+    },
+    # ── Kinesis ──────────────────────────────────────────────────────────────
+    {
+        "name": "list_kinesis_streams",
+        "description": "List Kinesis Data Streams with status and shard count.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "describe_kinesis_stream",
+        "description": "Get Kinesis stream details — shards, retention period, encryption, and enhanced monitoring.",
+        "inputSchema": {"type": "object", "properties": {"stream_name": {"type": "string", "description": "Kinesis stream name."}}, "required": ["stream_name"], "additionalProperties": False},
+    },
+    # ── Cost Explorer ────────────────────────────────────────────────────────
+    {
+        "name": "get_cost_and_usage",
+        "description": "Get AWS spend broken down by service and region. Shows top cost drivers for a time period. Use to detect billing anomalies or understand monthly spend.",
+        "inputSchema": {"type": "object", "properties": {"days": {"type": "integer", "default": 30, "description": "Days back to analyse. Default: 30."}, "group_by": {"type": "string", "enum": ["SERVICE", "REGION", "INSTANCE_TYPE"], "default": "SERVICE", "description": "Group spend by. Default: SERVICE."}}, "additionalProperties": False},
+    },
+    # ── AWS Health ───────────────────────────────────────────────────────────
+    {
+        "name": "get_aws_health_events",
+        "description": "Get active AWS service health events — outages, degradations, and maintenance affecting your account. Use during incidents to check if AWS itself is having an issue.",
+        "inputSchema": {"type": "object", "properties": {"region_filter": {"type": "string", "description": "Optional region to filter events, e.g. ap-south-1."}}, "additionalProperties": False},
+    },
+    # ── IAM ──────────────────────────────────────────────────────────────────
+    {
+        "name": "list_iam_users",
+        "description": "List IAM users with creation date, last login, and whether MFA is enabled. Use for security audits.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "list_iam_roles",
+        "description": "List IAM roles with trust policy summary and creation date.",
+        "inputSchema": {"type": "object", "properties": {"name_filter": {"type": "string", "description": "Optional role name substring filter."}}, "additionalProperties": False},
+    },
+    # ── Secrets Manager ──────────────────────────────────────────────────────
+    {
+        "name": "list_secrets",
+        "description": "List Secrets Manager secrets — names and last rotated date only, no values. Use to verify secrets exist and rotation is working.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    # ── Backup ───────────────────────────────────────────────────────────────
+    {
+        "name": "list_backup_jobs",
+        "description": "List recent AWS Backup jobs with state (COMPLETED/FAILED/RUNNING) and resource type. Use to verify backups are succeeding.",
+        "inputSchema": {"type": "object", "properties": {"state": {"type": "string", "enum": ["CREATED", "PENDING", "RUNNING", "ABORTED", "COMPLETED", "FAILED", "all"], "default": "all"}, "days": {"type": "integer", "default": 7, "description": "Days back. Default: 7."}}, "additionalProperties": False},
+    },
 ]
 
 # Inject optional region override into every tool schema
@@ -1489,6 +1678,704 @@ async def _get_trail_status(args: dict, creds: dict) -> str:
     return "\n".join(lines)
 
 
+# ── ELB handlers ─────────────────────────────────────────────────────────────
+
+async def _list_load_balancers(args: dict, creds: dict) -> str:
+    elb = _client("elbv2", creds, args.get("region"))
+    resp = elb.describe_load_balancers()
+    lbs = resp.get("LoadBalancers", [])
+    name_filter = (args.get("name_filter") or "").lower()
+    if name_filter:
+        lbs = [lb for lb in lbs if name_filter in lb["LoadBalancerName"].lower()]
+    if not lbs:
+        return "No load balancers found."
+    lines = [f"Found {len(lbs)} load balancer(s):\n"]
+    for lb in lbs:
+        lines.append(
+            f"  {lb['LoadBalancerName']}  [{lb['Type']}]  {lb['State']['Code']}\n"
+            f"    DNS: {lb['DNSName']}\n"
+            f"    ARN: {lb['LoadBalancerArn']}"
+        )
+    return "\n".join(lines)
+
+
+async def _get_target_group_health(args: dict, creds: dict) -> str:
+    elb = _client("elbv2", creds, args.get("region"))
+    lb_arn = args.get("load_balancer_arn")
+    if lb_arn:
+        tg_resp = elb.describe_target_groups(LoadBalancerArn=lb_arn)
+    else:
+        tg_resp = elb.describe_target_groups()
+    tgs = tg_resp.get("TargetGroups", [])
+    if not tgs:
+        return "No target groups found."
+    lines = []
+    for tg in tgs:
+        tg_arn = tg["TargetGroupArn"]
+        tg_name = tg["TargetGroupName"]
+        health = elb.describe_target_health(TargetGroupArn=tg_arn)
+        targets = health.get("TargetHealthDescriptions", [])
+        healthy = sum(1 for t in targets if t["TargetHealth"]["State"] == "healthy")
+        unhealthy = sum(1 for t in targets if t["TargetHealth"]["State"] == "unhealthy")
+        other = len(targets) - healthy - unhealthy
+        lines.append(f"Target Group: {tg_name}")
+        lines.append(f"  Targets: {len(targets)} total — ✅ {healthy} healthy, ❌ {unhealthy} unhealthy, ⏳ {other} other")
+        for t in targets:
+            state = t["TargetHealth"]["State"]
+            reason = t["TargetHealth"].get("Description", "")
+            port = t["Target"].get("Port", "")
+            lines.append(f"    {t['Target']['Id']}:{port}  [{state}]  {reason}")
+    return "\n".join(lines)
+
+
+# ── Auto Scaling handlers ─────────────────────────────────────────────────────
+
+async def _list_auto_scaling_groups(args: dict, creds: dict) -> str:
+    asg = _client("autoscaling", creds, args.get("region"))
+    resp = asg.describe_auto_scaling_groups()
+    groups = resp.get("AutoScalingGroups", [])
+    name_filter = (args.get("name_filter") or "").lower()
+    if name_filter:
+        groups = [g for g in groups if name_filter in g["AutoScalingGroupName"].lower()]
+    if not groups:
+        return "No Auto Scaling Groups found."
+    lines = [f"Found {len(groups)} ASG(s):\n"]
+    for g in groups:
+        healthy = sum(1 for i in g.get("Instances", []) if i.get("HealthStatus") == "Healthy")
+        total = len(g.get("Instances", []))
+        lines.append(
+            f"  {g['AutoScalingGroupName']}\n"
+            f"    Desired: {g['DesiredCapacity']}  Min: {g['MinSize']}  Max: {g['MaxSize']}\n"
+            f"    Instances: {total} total, {healthy} healthy\n"
+            f"    Status: {g.get('Status', 'Active')}"
+        )
+    return "\n".join(lines)
+
+
+async def _get_scaling_activities(args: dict, creds: dict) -> str:
+    asg = _client("autoscaling", creds, args.get("region"))
+    hours = min(720, max(1, int(args.get("hours", 24))))
+    start = datetime.utcnow() - timedelta(hours=hours)
+    resp = asg.describe_scaling_activities(
+        AutoScalingGroupName=args["asg_name"],
+        MaxRecords=50,
+    )
+    activities = [
+        a for a in resp.get("Activities", [])
+        if a.get("StartTime") and a["StartTime"].replace(tzinfo=None) >= start
+    ]
+    if not activities:
+        return f"No scaling activities for '{args['asg_name']}' in the last {hours}h."
+    lines = [f"Scaling activities for '{args['asg_name']}' (last {hours}h):\n"]
+    for a in activities:
+        ts = a["StartTime"].strftime("%Y-%m-%d %H:%M") if hasattr(a["StartTime"], "strftime") else str(a["StartTime"])
+        lines.append(f"  [{ts}] {a['StatusCode']}  —  {a.get('Description', '')}")
+        if a.get("Cause"):
+            lines.append(f"    Cause: {a['Cause'][:200]}")
+    return "\n".join(lines)
+
+
+# ── VPC handlers ──────────────────────────────────────────────────────────────
+
+async def _list_vpcs(args: dict, creds: dict) -> str:
+    ec2 = _client("ec2", creds, args.get("region"))
+    resp = ec2.describe_vpcs()
+    vpcs = resp.get("Vpcs", [])
+    if not vpcs:
+        return "No VPCs found."
+    lines = [f"Found {len(vpcs)} VPC(s):\n"]
+    for v in vpcs:
+        name = next((t["Value"] for t in v.get("Tags", []) if t["Key"] == "Name"), "(no name)")
+        default = " [DEFAULT]" if v.get("IsDefault") else ""
+        lines.append(f"  {v['VpcId']}  {v['CidrBlock']}  {name}{default}")
+    return "\n".join(lines)
+
+
+async def _describe_security_group(args: dict, creds: dict) -> str:
+    ec2 = _client("ec2", creds, args.get("region"))
+    resp = ec2.describe_security_groups(GroupIds=[args["sg_id"]])
+    sgs = resp.get("SecurityGroups", [])
+    if not sgs:
+        return f"Security group {args['sg_id']} not found."
+    sg = sgs[0]
+    lines = [f"Security Group: {sg['GroupId']}  ({sg['GroupName']})\nDescription: {sg.get('Description', '')}"]
+
+    def fmt_rule(rule, direction):
+        proto = rule.get("IpProtocol", "-1")
+        from_port = rule.get("FromPort", 0)
+        to_port = rule.get("ToPort", 65535)
+        port_str = "ALL" if proto == "-1" else (f"{from_port}" if from_port == to_port else f"{from_port}-{to_port}")
+        sources = [r["CidrIp"] for r in rule.get("IpRanges", [])]
+        sources += [r["CidrIpv6"] for r in rule.get("Ipv6Ranges", [])]
+        sources += [f"sg:{r['GroupId']}" for r in rule.get("UserIdGroupPairs", [])]
+        return f"    {direction}  proto={proto}  port={port_str}  from={', '.join(sources) or 'all'}"
+
+    lines.append("\nInbound:")
+    for r in sg.get("IpPermissions", []):
+        lines.append(fmt_rule(r, "ALLOW"))
+    lines.append("\nOutbound:")
+    for r in sg.get("IpPermissionsEgress", []):
+        lines.append(fmt_rule(r, "ALLOW"))
+    return "\n".join(lines)
+
+
+async def _list_subnets(args: dict, creds: dict) -> str:
+    ec2 = _client("ec2", creds, args.get("region"))
+    kwargs = {}
+    if args.get("vpc_id"):
+        kwargs["Filters"] = [{"Name": "vpc-id", "Values": [args["vpc_id"]]}]
+    resp = ec2.describe_subnets(**kwargs)
+    subnets = resp.get("Subnets", [])
+    if not subnets:
+        return "No subnets found."
+    lines = [f"Found {len(subnets)} subnet(s):\n"]
+    for s in subnets:
+        name = next((t["Value"] for t in s.get("Tags", []) if t["Key"] == "Name"), "(no name)")
+        lines.append(
+            f"  {s['SubnetId']}  {s['CidrBlock']}  AZ:{s['AvailabilityZone']}  "
+            f"free_ips:{s['AvailableIpAddressCount']}  vpc:{s['VpcId']}  {name}"
+        )
+    return "\n".join(lines)
+
+
+# ── ElastiCache handlers ──────────────────────────────────────────────────────
+
+async def _list_elasticache_clusters(args: dict, creds: dict) -> str:
+    ec = _client("elasticache", creds, args.get("region"))
+    resp = ec.describe_cache_clusters(ShowCacheNodeInfo=True)
+    clusters = resp.get("CacheClusters", [])
+    if not clusters:
+        return "No ElastiCache clusters found."
+    lines = [f"Found {len(clusters)} ElastiCache cluster(s):\n"]
+    for c in clusters:
+        endpoint = ""
+        if c.get("ConfigurationEndpoint"):
+            endpoint = f"{c['ConfigurationEndpoint']['Address']}:{c['ConfigurationEndpoint']['Port']}"
+        elif c.get("CacheNodes") and c["CacheNodes"][0].get("Endpoint"):
+            endpoint = f"{c['CacheNodes'][0]['Endpoint']['Address']}:{c['CacheNodes'][0]['Endpoint']['Port']}"
+        lines.append(
+            f"  {c['CacheClusterId']}  [{c['Engine']} {c['EngineVersion']}]  "
+            f"{c['CacheNodeType']}  {c['CacheClusterStatus']}\n"
+            f"    Nodes: {c['NumCacheNodes']}  Endpoint: {endpoint}"
+        )
+    return "\n".join(lines)
+
+
+async def _get_elasticache_events(args: dict, creds: dict) -> str:
+    ec = _client("elasticache", creds, args.get("region"))
+    hours = min(336, max(1, int(args.get("hours", 24))))
+    start = datetime.utcnow() - timedelta(hours=hours)
+    kwargs: dict = {"StartTime": start, "MaxRecords": 50}
+    if args.get("source_id"):
+        kwargs["SourceIdentifier"] = args["source_id"]
+    resp = ec.describe_events(**kwargs)
+    events = resp.get("Events", [])
+    if not events:
+        return f"No ElastiCache events in the last {hours}h."
+    lines = [f"ElastiCache events (last {hours}h):\n"]
+    for e in events:
+        ts = e["Date"].strftime("%Y-%m-%d %H:%M") if hasattr(e["Date"], "strftime") else str(e["Date"])
+        lines.append(f"  [{ts}]  {e.get('SourceIdentifier', '')}  —  {e['Message']}")
+    return "\n".join(lines)
+
+
+# ── DynamoDB handlers ─────────────────────────────────────────────────────────
+
+async def _list_dynamodb_tables(args: dict, creds: dict) -> str:
+    ddb = _client("dynamodb", creds, args.get("region"))
+    tables = []
+    kwargs: dict = {}
+    while True:
+        resp = ddb.list_tables(**kwargs)
+        tables.extend(resp.get("TableNames", []))
+        if not resp.get("LastEvaluatedTableName"):
+            break
+        kwargs["ExclusiveStartTableName"] = resp["LastEvaluatedTableName"]
+    if not tables:
+        return "No DynamoDB tables found."
+    return f"DynamoDB tables ({len(tables)}):\n" + "\n".join(f"  {t}" for t in tables)
+
+
+async def _describe_dynamodb_table(args: dict, creds: dict) -> str:
+    ddb = _client("dynamodb", creds, args.get("region"))
+    resp = ddb.describe_table(TableName=args["table_name"])
+    t = resp["Table"]
+    billing = t.get("BillingModeSummary", {}).get("BillingMode", "PROVISIONED")
+    lines = [
+        f"Table: {t['TableName']}  Status: {t['TableStatus']}",
+        f"  Billing mode: {billing}",
+        f"  Item count: {t.get('ItemCount', 'N/A')}",
+        f"  Size bytes: {t.get('TableSizeBytes', 'N/A')}",
+    ]
+    for attr in t.get("AttributeDefinitions", []):
+        lines.append(f"  Attribute: {attr['AttributeName']} ({attr['AttributeType']})")
+    for key in t.get("KeySchema", []):
+        lines.append(f"  Key: {key['AttributeName']} ({key['KeyType']})")
+    for gsi in t.get("GlobalSecondaryIndexes", []):
+        lines.append(f"  GSI: {gsi['IndexName']}  status:{gsi.get('IndexStatus', '?')}")
+    return "\n".join(lines)
+
+
+# ── CloudFormation handlers ───────────────────────────────────────────────────
+
+async def _list_cloudformation_stacks(args: dict, creds: dict) -> str:
+    cf = _client("cloudformation", creds, args.get("region"))
+    all_statuses = [
+        "CREATE_IN_PROGRESS", "CREATE_FAILED", "CREATE_COMPLETE",
+        "ROLLBACK_IN_PROGRESS", "ROLLBACK_FAILED", "ROLLBACK_COMPLETE",
+        "DELETE_IN_PROGRESS", "DELETE_FAILED",
+        "UPDATE_IN_PROGRESS", "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
+        "UPDATE_COMPLETE", "UPDATE_FAILED",
+        "UPDATE_ROLLBACK_IN_PROGRESS", "UPDATE_ROLLBACK_FAILED",
+        "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS", "UPDATE_ROLLBACK_COMPLETE",
+        "REVIEW_IN_PROGRESS", "IMPORT_IN_PROGRESS", "IMPORT_COMPLETE",
+        "IMPORT_ROLLBACK_IN_PROGRESS", "IMPORT_ROLLBACK_FAILED", "IMPORT_ROLLBACK_COMPLETE",
+    ]
+    status_filter = args.get("status_filter")
+    if status_filter and status_filter in all_statuses:
+        resp = cf.list_stacks(StackStatusFilter=[status_filter])
+    else:
+        resp = cf.list_stacks(StackStatusFilter=[s for s in all_statuses if "DELETE" not in s])
+    stacks = resp.get("StackSummaries", [])
+    if not stacks:
+        return "No CloudFormation stacks found."
+    lines = [f"Found {len(stacks)} stack(s):\n"]
+    for s in stacks:
+        updated = s.get("LastUpdatedTime") or s.get("CreationTime")
+        ts = updated.strftime("%Y-%m-%d %H:%M") if hasattr(updated, "strftime") else str(updated)
+        lines.append(f"  {s['StackName']}  [{s['StackStatus']}]  last updated: {ts}")
+    return "\n".join(lines)
+
+
+async def _get_stack_events(args: dict, creds: dict) -> str:
+    cf = _client("cloudformation", creds, args.get("region"))
+    resp = cf.describe_stack_events(StackName=args["stack_name"])
+    events = resp.get("StackEvents", [])[:int(args.get("limit", 30))]
+    if not events:
+        return f"No events found for stack '{args['stack_name']}'."
+    lines = [f"CloudFormation events for '{args['stack_name']}':\n"]
+    for e in events:
+        ts = e["Timestamp"].strftime("%Y-%m-%d %H:%M") if hasattr(e["Timestamp"], "strftime") else str(e["Timestamp"])
+        reason = f"  ⚠️  {e['ResourceStatusReason']}" if e.get("ResourceStatusReason") else ""
+        lines.append(
+            f"  [{ts}]  {e['ResourceType']}  {e['ResourceStatus']}{reason}"
+        )
+    return "\n".join(lines)
+
+
+# ── EKS handlers ──────────────────────────────────────────────────────────────
+
+async def _list_eks_clusters(args: dict, creds: dict) -> str:
+    eks = _client("eks", creds, args.get("region"))
+    resp = eks.list_clusters()
+    clusters = resp.get("clusters", [])
+    if not clusters:
+        return "No EKS clusters found."
+    return f"EKS clusters ({len(clusters)}):\n" + "\n".join(f"  {c}" for c in clusters)
+
+
+async def _describe_eks_cluster(args: dict, creds: dict) -> str:
+    eks = _client("eks", creds, args.get("region"))
+    resp = eks.describe_cluster(name=args["cluster_name"])
+    c = resp["cluster"]
+    logging_types = [
+        t["types"] for t in c.get("logging", {}).get("clusterLogging", []) if t.get("enabled")
+    ]
+    lines = [
+        f"EKS Cluster: {c['name']}  Status: {c['status']}",
+        f"  Kubernetes version: {c['version']}",
+        f"  Endpoint: {c.get('endpoint', 'N/A')}",
+        f"  VPC: {c.get('resourcesVpcConfig', {}).get('vpcId', 'N/A')}",
+        f"  Logging: {logging_types if logging_types else 'none'}",
+        f"  Created: {c['createdAt'].strftime('%Y-%m-%d') if hasattr(c.get('createdAt'), 'strftime') else 'N/A'}",
+    ]
+    return "\n".join(lines)
+
+
+async def _list_eks_nodegroups(args: dict, creds: dict) -> str:
+    eks = _client("eks", creds, args.get("region"))
+    resp = eks.list_nodegroups(clusterName=args["cluster_name"])
+    nodegroups = resp.get("nodegroups", [])
+    if not nodegroups:
+        return f"No node groups in cluster '{args['cluster_name']}'."
+    lines = [f"Node groups in '{args['cluster_name']}':\n"]
+    for ng_name in nodegroups:
+        ng_resp = eks.describe_nodegroup(clusterName=args["cluster_name"], nodegroupName=ng_name)
+        ng = ng_resp["nodegroup"]
+        scaling = ng.get("scalingConfig", {})
+        lines.append(
+            f"  {ng_name}  [{ng['status']}]\n"
+            f"    Instance type: {ng.get('instanceTypes', ['?'])[0]}\n"
+            f"    Scaling: min={scaling.get('minSize')} desired={scaling.get('desiredSize')} max={scaling.get('maxSize')}\n"
+            f"    Health: {ng.get('health', {}).get('issues', 'OK')}"
+        )
+    return "\n".join(lines)
+
+
+# ── API Gateway handlers ──────────────────────────────────────────────────────
+
+async def _list_api_gateways(args: dict, creds: dict) -> str:
+    apigw = _client("apigateway", creds, args.get("region"))
+    resp = apigw.get_rest_apis()
+    apis = resp.get("items", [])
+    if not apis:
+        return "No REST APIs found in API Gateway."
+    lines = [f"Found {len(apis)} REST API(s):\n"]
+    for a in apis:
+        endpoint_type = a.get("endpointConfiguration", {}).get("types", ["?"])[0]
+        lines.append(f"  {a['id']}  {a['name']}  [{endpoint_type}]  created: {a.get('createdDate', '?')}")
+    return "\n".join(lines)
+
+
+async def _get_api_stages(args: dict, creds: dict) -> str:
+    apigw = _client("apigateway", creds, args.get("region"))
+    resp = apigw.get_stages(restApiId=args["api_id"])
+    stages = resp.get("item", [])
+    if not stages:
+        return f"No stages found for API {args['api_id']}."
+    lines = [f"Stages for API '{args['api_id']}':\n"]
+    for s in stages:
+        ts = s.get("lastUpdatedDate", "?")
+        ts_str = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)
+        throttle = s.get("defaultRouteSettings", {})
+        lines.append(
+            f"  {s['stageName']}  deployed: {s.get('deploymentId', '?')}  last updated: {ts_str}\n"
+            f"    Throttle burst: {s.get('defaultRouteSettings', {}).get('throttlingBurstLimit', 'default')}  "
+            f"rate: {s.get('defaultRouteSettings', {}).get('throttlingRateLimit', 'default')}"
+        )
+    return "\n".join(lines)
+
+
+# ── SNS handlers ──────────────────────────────────────────────────────────────
+
+async def _list_sns_topics(args: dict, creds: dict) -> str:
+    sns = _client("sns", creds, args.get("region"))
+    topics = []
+    kwargs: dict = {}
+    while True:
+        resp = sns.list_topics(**kwargs)
+        topics.extend(resp.get("Topics", []))
+        if not resp.get("NextToken"):
+            break
+        kwargs["NextToken"] = resp["NextToken"]
+    if not topics:
+        return "No SNS topics found."
+    return f"SNS topics ({len(topics)}):\n" + "\n".join(f"  {t['TopicArn']}" for t in topics)
+
+
+async def _get_sns_topic_details(args: dict, creds: dict) -> str:
+    sns = _client("sns", creds, args.get("region"))
+    attrs = sns.get_topic_attributes(TopicArn=args["topic_arn"])["Attributes"]
+    subs = sns.list_subscriptions_by_topic(TopicArn=args["topic_arn"])
+    sub_list = subs.get("Subscriptions", [])
+    lines = [
+        f"SNS Topic: {args['topic_arn']}",
+        f"  Display name: {attrs.get('DisplayName', '(none)')}",
+        f"  Subscriptions confirmed: {attrs.get('SubscriptionsConfirmed', 0)}",
+        f"  Subscriptions pending:   {attrs.get('SubscriptionsPending', 0)}",
+        f"  KMS key: {attrs.get('KmsMasterKeyId', 'none')}",
+        f"\nSubscriptions ({len(sub_list)}):",
+    ]
+    for s in sub_list[:20]:
+        lines.append(f"  {s['Protocol']}  {s['Endpoint']}  [{s['SubscriptionArn'].split(':')[-1]}]")
+    return "\n".join(lines)
+
+
+# ── Route 53 handlers ─────────────────────────────────────────────────────────
+
+async def _list_hosted_zones(args: dict, creds: dict) -> str:
+    r53 = boto3.client("route53",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    resp = r53.list_hosted_zones()
+    zones = resp.get("HostedZones", [])
+    if not zones:
+        return "No hosted zones found."
+    lines = [f"Route 53 hosted zones ({len(zones)}):\n"]
+    for z in zones:
+        zone_type = "PRIVATE" if z["Config"].get("PrivateZone") else "PUBLIC"
+        lines.append(f"  {z['Name']}  [{zone_type}]  records: {z['ResourceRecordSetCount']}  id: {z['Id'].split('/')[-1]}")
+    return "\n".join(lines)
+
+
+async def _list_route53_health_checks(args: dict, creds: dict) -> str:
+    r53 = boto3.client("route53",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    resp = r53.list_health_checks()
+    checks = resp.get("HealthChecks", [])
+    if not checks:
+        return "No Route 53 health checks found."
+    lines = [f"Route 53 health checks ({len(checks)}):\n"]
+    for hc in checks:
+        cfg = hc.get("HealthCheckConfig", {})
+        endpoint = f"{cfg.get('FullyQualifiedDomainName') or cfg.get('IPAddress', '?')}:{cfg.get('Port', '?')}"
+        lines.append(f"  {hc['Id']}  {cfg.get('Type', '?')}  {endpoint}  threshold:{cfg.get('FailureThreshold', '?')}")
+    return "\n".join(lines)
+
+
+# ── SSM handler ───────────────────────────────────────────────────────────────
+
+async def _list_ssm_managed_instances(args: dict, creds: dict) -> str:
+    ssm = _client("ssm", creds, args.get("region"))
+    ping_status = args.get("ping_status", "all")
+    filters = []
+    if ping_status and ping_status != "all":
+        filters.append({"Key": "PingStatus", "Values": [ping_status]})
+    kwargs: dict = {"Filters": filters} if filters else {}
+    resp = ssm.describe_instance_information(**kwargs)
+    instances = resp.get("InstanceInformationList", [])
+    if not instances:
+        return "No SSM-managed instances found."
+    lines = [f"SSM managed instances ({len(instances)}):\n"]
+    for i in instances:
+        last_ping = i.get("LastPingDateTime")
+        last_ping_str = last_ping.strftime("%Y-%m-%d %H:%M") if hasattr(last_ping, "strftime") else "?"
+        lines.append(
+            f"  {i['InstanceId']}  [{i['PingStatus']}]  {i.get('PlatformName', '?')} {i.get('PlatformVersion', '')}\n"
+            f"    Agent: {i.get('AgentVersion', '?')}  Last ping: {last_ping_str}"
+        )
+    return "\n".join(lines)
+
+
+# ── CloudFront handler ────────────────────────────────────────────────────────
+
+async def _list_cloudfront_distributions(args: dict, creds: dict) -> str:
+    cf = boto3.client("cloudfront",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    resp = cf.list_distributions()
+    dist_list = resp.get("DistributionList", {}).get("Items", [])
+    if not dist_list:
+        return "No CloudFront distributions found."
+    lines = [f"CloudFront distributions ({len(dist_list)}):\n"]
+    for d in dist_list:
+        origins = [o["DomainName"] for o in d.get("Origins", {}).get("Items", [])]
+        lines.append(
+            f"  {d['DomainName']}  [{d['Status']}]  {d.get('PriceClass', '?')}\n"
+            f"    Origins: {', '.join(origins)}\n"
+            f"    ID: {d['Id']}"
+        )
+    return "\n".join(lines)
+
+
+# ── ECR handlers ──────────────────────────────────────────────────────────────
+
+async def _list_ecr_repositories(args: dict, creds: dict) -> str:
+    ecr = _client("ecr", creds, args.get("region"))
+    resp = ecr.describe_repositories()
+    repos = resp.get("repositories", [])
+    if not repos:
+        return "No ECR repositories found."
+    lines = [f"ECR repositories ({len(repos)}):\n"]
+    for r in repos:
+        lines.append(f"  {r['repositoryName']}  URI: {r['repositoryUri']}")
+    return "\n".join(lines)
+
+
+async def _describe_ecr_images(args: dict, creds: dict) -> str:
+    ecr = _client("ecr", creds, args.get("region"))
+    resp = ecr.describe_images(
+        repositoryName=args["repository_name"],
+        filter={"tagStatus": "ANY"},
+    )
+    images = sorted(
+        resp.get("imageDetails", []),
+        key=lambda i: i.get("imagePushedAt", 0),
+        reverse=True,
+    )[:int(args.get("limit", 20))]
+    if not images:
+        return f"No images found in '{args['repository_name']}'."
+    lines = [f"Images in '{args['repository_name']}' (newest first):\n"]
+    for img in images:
+        pushed = img.get("imagePushedAt")
+        pushed_str = pushed.strftime("%Y-%m-%d %H:%M") if hasattr(pushed, "strftime") else "?"
+        size_mb = round(img.get("imageSizeInBytes", 0) / 1024 / 1024, 1)
+        tags = ", ".join(img.get("imageTags", [])) or "<untagged>"
+        lines.append(f"  {tags}  pushed: {pushed_str}  size: {size_mb}MB  digest: {img['imageDigest'][:19]}…")
+    return "\n".join(lines)
+
+
+# ── Kinesis handlers ──────────────────────────────────────────────────────────
+
+async def _list_kinesis_streams(args: dict, creds: dict) -> str:
+    kin = _client("kinesis", creds, args.get("region"))
+    resp = kin.list_streams()
+    streams = resp.get("StreamNames", [])
+    if not streams:
+        return "No Kinesis streams found."
+    return f"Kinesis streams ({len(streams)}):\n" + "\n".join(f"  {s}" for s in streams)
+
+
+async def _describe_kinesis_stream(args: dict, creds: dict) -> str:
+    kin = _client("kinesis", creds, args.get("region"))
+    resp = kin.describe_stream(StreamName=args["stream_name"])
+    desc = resp["StreamDescription"]
+    lines = [
+        f"Kinesis Stream: {desc['StreamName']}  Status: {desc['StreamStatus']}",
+        f"  Shards: {len(desc.get('Shards', []))}",
+        f"  Retention (hours): {desc.get('RetentionPeriodHours', '?')}",
+        f"  Encryption: {desc.get('EncryptionType', 'NONE')}",
+        f"  Enhanced monitoring: {[m['ShardLevelMetrics'] for m in desc.get('EnhancedMonitoring', [])]}",
+    ]
+    return "\n".join(lines)
+
+
+# ── Cost Explorer handler ─────────────────────────────────────────────────────
+
+async def _get_cost_and_usage(args: dict, creds: dict) -> str:
+    ce = boto3.client("ce",
+        region_name="us-east-1",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    days = min(365, max(1, int(args.get("days", 30))))
+    end = datetime.utcnow().strftime("%Y-%m-%d")
+    start = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    group_by = args.get("group_by", "SERVICE")
+    resp = ce.get_cost_and_usage(
+        TimePeriod={"Start": start, "End": end},
+        Granularity="MONTHLY",
+        Metrics=["UnblendedCost"],
+        GroupBy=[{"Type": "DIMENSION", "Key": group_by}],
+    )
+    results = resp.get("ResultsByTime", [])
+    if not results:
+        return "No cost data found."
+    total_by_group: dict = {}
+    for period in results:
+        for group in period.get("Groups", []):
+            key = group["Keys"][0]
+            amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
+            total_by_group[key] = total_by_group.get(key, 0.0) + amount
+    sorted_groups = sorted(total_by_group.items(), key=lambda x: x[1], reverse=True)
+    total = sum(v for _, v in sorted_groups)
+    lines = [f"AWS cost by {group_by} ({start} → {end}) — Total: ${total:.2f}\n"]
+    for name, cost in sorted_groups[:25]:
+        if cost > 0.01:
+            lines.append(f"  {name:<40} ${cost:>10.2f}")
+    return "\n".join(lines)
+
+
+# ── AWS Health handler ────────────────────────────────────────────────────────
+
+async def _get_aws_health_events(args: dict, creds: dict) -> str:
+    health = boto3.client("health",
+        region_name="us-east-1",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    filters: dict = {"eventStatusCodes": ["open", "upcoming"]}
+    if args.get("region_filter"):
+        filters["regions"] = [args["region_filter"]]
+    resp = health.describe_events(filter=filters)
+    events = resp.get("events", [])
+    if not events:
+        return "No active AWS Health events. All services appear healthy."
+    lines = [f"Active AWS Health events ({len(events)}):\n"]
+    for e in events:
+        start = e.get("startTime")
+        start_str = start.strftime("%Y-%m-%d %H:%M") if hasattr(start, "strftime") else "?"
+        lines.append(
+            f"  [{e['eventTypeCode']}]  {e.get('service', '?')}  region:{e.get('region', 'global')}\n"
+            f"    Status: {e['statusCode']}  Since: {start_str}"
+        )
+    return "\n".join(lines)
+
+
+# ── IAM handlers ──────────────────────────────────────────────────────────────
+
+async def _list_iam_users(args: dict, creds: dict) -> str:
+    iam = boto3.client("iam",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    resp = iam.list_users()
+    users = resp.get("Users", [])
+    if not users:
+        return "No IAM users found."
+    lines = [f"IAM users ({len(users)}):\n"]
+    for u in users:
+        last_login = u.get("PasswordLastUsed")
+        last_login_str = last_login.strftime("%Y-%m-%d") if hasattr(last_login, "strftime") else "never"
+        created = u.get("CreateDate")
+        created_str = created.strftime("%Y-%m-%d") if hasattr(created, "strftime") else "?"
+        lines.append(f"  {u['UserName']}  created:{created_str}  last_login:{last_login_str}")
+    return "\n".join(lines)
+
+
+async def _list_iam_roles(args: dict, creds: dict) -> str:
+    iam = boto3.client("iam",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    resp = iam.list_roles()
+    roles = resp.get("Roles", [])
+    name_filter = (args.get("name_filter") or "").lower()
+    if name_filter:
+        roles = [r for r in roles if name_filter in r["RoleName"].lower()]
+    if not roles:
+        return "No IAM roles found."
+    lines = [f"IAM roles ({len(roles)}):\n"]
+    for r in roles[:50]:
+        created = r.get("CreateDate")
+        created_str = created.strftime("%Y-%m-%d") if hasattr(created, "strftime") else "?"
+        lines.append(f"  {r['RoleName']}  created:{created_str}  path:{r.get('Path', '/')}")
+    if len(roles) > 50:
+        lines.append(f"  … and {len(roles) - 50} more (use name_filter to narrow results)")
+    return "\n".join(lines)
+
+
+# ── Secrets Manager handler ───────────────────────────────────────────────────
+
+async def _list_secrets(args: dict, creds: dict) -> str:
+    sm = _client("secretsmanager", creds, args.get("region"))
+    secrets = []
+    kwargs: dict = {}
+    while True:
+        resp = sm.list_secrets(**kwargs)
+        secrets.extend(resp.get("SecretList", []))
+        if not resp.get("NextToken"):
+            break
+        kwargs["NextToken"] = resp["NextToken"]
+    if not secrets:
+        return "No secrets found in Secrets Manager."
+    lines = [f"Secrets Manager ({len(secrets)} secrets):\n"]
+    for s in secrets:
+        rotated = s.get("LastRotatedDate")
+        rotated_str = rotated.strftime("%Y-%m-%d") if hasattr(rotated, "strftime") else "never rotated"
+        lines.append(f"  {s['Name']}  last_rotated:{rotated_str}")
+    return "\n".join(lines)
+
+
+# ── Backup handler ────────────────────────────────────────────────────────────
+
+async def _list_backup_jobs(args: dict, creds: dict) -> str:
+    bk = _client("backup", creds, args.get("region"))
+    days = min(90, max(1, int(args.get("days", 7))))
+    start = datetime.utcnow() - timedelta(days=days)
+    state = args.get("state", "all")
+    kwargs: dict = {"ByCreatedAfter": start}
+    if state and state != "all":
+        kwargs["ByState"] = state
+    resp = bk.list_backup_jobs(**kwargs)
+    jobs = resp.get("BackupJobs", [])
+    if not jobs:
+        return f"No backup jobs found in the last {days} days."
+    lines = [f"Backup jobs (last {days}d) — {len(jobs)} found:\n"]
+    for j in jobs:
+        created = j.get("CreationDate")
+        created_str = created.strftime("%Y-%m-%d %H:%M") if hasattr(created, "strftime") else "?"
+        lines.append(
+            f"  [{j['State']}]  {j.get('ResourceType', '?')}  {created_str}\n"
+            f"    Resource: {j.get('ResourceArn', '?')}"
+        )
+    return "\n".join(lines)
+
+
 # ── Tool dispatch ────────────────────────────────────────────────────────────
 
 _HANDLERS = {
@@ -1518,6 +2405,59 @@ _HANDLERS = {
     "list_ecs_services":              _list_ecs_services,
     "list_sqs_queues":                _list_sqs_queues,
     "get_sqs_queue_stats":            _get_sqs_queue_stats,
+    # ELB
+    "list_load_balancers":            _list_load_balancers,
+    "get_target_group_health":        _get_target_group_health,
+    # Auto Scaling
+    "list_auto_scaling_groups":       _list_auto_scaling_groups,
+    "get_scaling_activities":         _get_scaling_activities,
+    # VPC
+    "list_vpcs":                      _list_vpcs,
+    "describe_security_group":        _describe_security_group,
+    "list_subnets":                   _list_subnets,
+    # ElastiCache
+    "list_elasticache_clusters":      _list_elasticache_clusters,
+    "get_elasticache_events":         _get_elasticache_events,
+    # DynamoDB
+    "list_dynamodb_tables":           _list_dynamodb_tables,
+    "describe_dynamodb_table":        _describe_dynamodb_table,
+    # CloudFormation
+    "list_cloudformation_stacks":     _list_cloudformation_stacks,
+    "get_stack_events":               _get_stack_events,
+    # EKS
+    "list_eks_clusters":              _list_eks_clusters,
+    "describe_eks_cluster":           _describe_eks_cluster,
+    "list_eks_nodegroups":            _list_eks_nodegroups,
+    # API Gateway
+    "list_api_gateways":              _list_api_gateways,
+    "get_api_stages":                 _get_api_stages,
+    # SNS
+    "list_sns_topics":                _list_sns_topics,
+    "get_sns_topic_details":          _get_sns_topic_details,
+    # Route 53
+    "list_hosted_zones":              _list_hosted_zones,
+    "list_route53_health_checks":     _list_route53_health_checks,
+    # SSM
+    "list_ssm_managed_instances":     _list_ssm_managed_instances,
+    # CloudFront
+    "list_cloudfront_distributions":  _list_cloudfront_distributions,
+    # ECR
+    "list_ecr_repositories":          _list_ecr_repositories,
+    "describe_ecr_images":            _describe_ecr_images,
+    # Kinesis
+    "list_kinesis_streams":           _list_kinesis_streams,
+    "describe_kinesis_stream":        _describe_kinesis_stream,
+    # Cost Explorer
+    "get_cost_and_usage":             _get_cost_and_usage,
+    # AWS Health
+    "get_aws_health_events":          _get_aws_health_events,
+    # IAM
+    "list_iam_users":                 _list_iam_users,
+    "list_iam_roles":                 _list_iam_roles,
+    # Secrets Manager
+    "list_secrets":                   _list_secrets,
+    # Backup
+    "list_backup_jobs":               _list_backup_jobs,
 }
 
 
